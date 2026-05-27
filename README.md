@@ -256,6 +256,12 @@ Preparado para:
 - Notificaciones
 
 ---
+# Imágenes de  funcionamiento
+<img width="604" height="715" alt="image" src="https://github.com/user-attachments/assets/92ce7483-5448-4378-b46e-69d7b79620be" />
+
+<img width="739" height="1600" alt="image" src="https://github.com/user-attachments/assets/ee1e2bbe-1be5-4a49-a90c-6f16bca0f437" />
+
+---
 
 # Autores
 
