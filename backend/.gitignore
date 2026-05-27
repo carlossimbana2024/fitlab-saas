@@ -1,0 +1,18 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno
+.env
+
+# Firebase
+firebase-service-account.json
+
+# Logs
+*.log
+
+# VSCode
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db

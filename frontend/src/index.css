@@ -1,0 +1,266 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #1F2937;
+  color: #FFFFFF;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background:
+    linear-gradient(rgba(31, 41, 55, 0.9), rgba(31, 41, 55, 0.95)),
+    url("/gym-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 42px;
+  border: 1px solid #9CA3AF;
+  border-radius: 18px;
+  background: rgba(17, 24, 39, 0.86);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+}
+
+.register-card {
+  max-width: 720px;
+}
+
+.auth-card h1 {
+  text-align: center;
+  font-size: 48px;
+  margin: 0;
+}
+
+.auth-card h1 span {
+  color: #EF4444;
+}
+
+.auth-card h2 {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.auth-card p {
+  text-align: center;
+  color: #9CA3AF;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+label {
+  font-weight: bold;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid #9CA3AF;
+  color: #FFFFFF;
+  outline: none;
+}
+
+select option {
+  color: #111827;
+}
+
+.input-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #9CA3AF;
+  border-radius: 8px;
+  padding: 0 14px;
+}
+
+.input-box input {
+  border: none;
+}
+
+button {
+  padding: 16px;
+  border: none;
+  border-radius: 8px;
+  background: #EF4444;
+  color: #FFFFFF;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #dc2626;
+}
+
+a,
+.link {
+  color: #EF4444;
+  text-decoration: none;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-card {
+    padding: 28px;
+  }
+}
+
+.dashboard-page {
+  min-height: 100vh;
+  background: #1F2937;
+  color: #FFFFFF;
+  padding: 32px;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  font-size: 36px;
+}
+
+.dashboard-header p {
+  color: #9CA3AF;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.dashboard-card {
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid #9CA3AF;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.dashboard-card h2 {
+  color: #EF4444;
+  margin-top: 0;
+}
+
+.dashboard-card p {
+  color: #D1D5DB;
+}
+
+.dashboard-card button,
+.dashboard-header button {
+  margin-top: 12px;
+  background: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.dashboard-card button:hover,
+.dashboard-header button:hover {
+  background: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.profile-form-card {
+  width: 100%;
+  max-width: 760px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #111827;
+  border: 1px solid #9CA3AF;
+  border-radius: 18px;
+  padding: 32px;
+}
+
+.profile-form-card h2 {
+  color: #EF4444;
+  margin-top: 0;
+}
+
+.profile-form-card p {
+  color: #9CA3AF;
+}
+
+.profile-form-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-form-card textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid #9CA3AF;
+  color: #FFFFFF;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.form-actions button:nth-child(2) {
+  background: transparent;
+  border: 1px solid #9CA3AF;
+}
