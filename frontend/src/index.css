@@ -15,10 +15,8 @@ body {
   justify-content: center;
   align-items: center;
   background:
-    linear-gradient(rgba(31, 41, 55, 0.9), rgba(31, 41, 55, 0.95)),
-    url("/gym-bg.jpg");
-  background-size: cover;
-  background-position: center;
+    radial-gradient(circle at 20% 20%, rgba(239, 68, 68, 0.18), transparent 36%),
+    linear-gradient(145deg, #111827, #1F2937);
   padding: 24px;
 }
 
@@ -109,6 +107,27 @@ button:hover {
   background: #dc2626;
 }
 
+.button-secondary {
+  background: transparent !important;
+  border: 1px solid #6B7280 !important;
+}
+
+.icon-button {
+  width: auto;
+  padding: 6px;
+  background: transparent;
+  color: #D1D5DB;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 a,
 .link {
   color: #EF4444;
@@ -121,8 +140,39 @@ a,
   gap: 14px;
 }
 
+.code-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.invitation-code {
+  color: #FCA5A5;
+  font-size: 20px;
+  letter-spacing: 2px;
+}
+
+.compact-select {
+  width: auto;
+  min-width: 140px;
+  padding: 10px;
+}
+
+.form-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid #EF4444;
+  background: rgba(239, 68, 68, 0.08);
+  text-align: left !important;
+}
+
 @media (max-width: 768px) {
   .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .code-row {
     grid-template-columns: 1fr;
   }
 
@@ -160,11 +210,95 @@ a,
   gap: 24px;
 }
 
+.dashboard-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dashboard-section {
+  margin-top: 24px;
+}
+
 .dashboard-card {
   background: rgba(17, 24, 39, 0.9);
   border: 1px solid #9CA3AF;
   border-radius: 16px;
   padding: 24px;
+}
+
+.dashboard-card textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 16px;
+  border: 1px solid #9CA3AF;
+  border-radius: 8px;
+  background: transparent;
+  color: #FFFFFF;
+  font: inherit;
+  resize: vertical;
+}
+
+.card-heading,
+.list-item,
+.inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-heading,
+.list-item {
+  justify-content: space-between;
+}
+
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.list-item {
+  padding: 14px;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  background: rgba(31, 41, 55, 0.55);
+}
+
+.list-item p {
+  margin: 6px 0;
+}
+
+.status-message {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+
+.status-success {
+  border: 1px solid #22C55E;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.status-error {
+  border: 1px solid #EF4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.status-pill {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #374151;
+  font-size: 14px;
+}
+
+.status-pill.confirmed {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.status-pill.rejected {
+  background: rgba(239, 68, 68, 0.2);
 }
 
 .dashboard-card h2 {
@@ -202,6 +336,13 @@ a,
 
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .card-heading,
+  .list-item,
+  .inline-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

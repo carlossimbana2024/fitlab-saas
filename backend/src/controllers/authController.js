@@ -1,94 +1,181 @@
-const { db } = require("../config/firebase");
+const { admin, auth, db } = require("../config/firebase");
 
-const getGyms = async (req, res) => {
-  try {
-    const snapshot = await db
-      .collection("gyms")
-      .where("status", "==", "active")
-      .get();
+const publicUserData = (userDoc) => {
+  const data = userDoc.data();
 
-    const gyms = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    res.json(gyms);
-  } catch (error) {
-    res.status(500).json({
-      message: "Error obteniendo gimnasios",
-      error: error.message,
-    });
-  }
+  return {
+    ...data,
+    uid: userDoc.id,
+    role: typeof data.role === "string" ? data.role.trim() : data.role,
+    gym_id:
+      typeof data.gym_id === "string" ? data.gym_id.trim() : data.gym_id,
+  };
 };
 
-const registerUser = async (req, res) => {
-  try {
-    const { uid, name, lastName, email, role, gym_id, birthDate, gender } =
-      req.body;
+const isNonEmptyString = (value) =>
+  typeof value === "string" && value.trim().length > 0;
 
-    if (!uid || !name || !lastName || !email || !role || !gym_id) {
+const registerUser = async (req, res) => {
+  let createdUser = null;
+
+  try {
+    const {
+      name,
+      lastName,
+      email,
+      password,
+      invitationCode,
+      birthDate,
+      gender,
+    } = req.validated.body;
+
+    if (
+      !isNonEmptyString(name) ||
+      !isNonEmptyString(lastName) ||
+      !isNonEmptyString(email) ||
+      !isNonEmptyString(password) ||
+      !isNonEmptyString(invitationCode)
+    ) {
       return res.status(400).json({
         message: "Faltan campos obligatorios",
       });
     }
 
-    if (!["owner", "client"].includes(role)) {
+    if (password.length < 6) {
       return res.status(400).json({
-        message: "Rol inválido",
+        message: "La contraseña debe tener mínimo 6 caracteres",
       });
     }
 
-    const gymDoc = await db.collection("gyms").doc(gym_id).get();
+    const invitationSnapshot = await db
+      .collection("invitations")
+      .where("code", "==", invitationCode.trim().toUpperCase())
+      .limit(1)
+      .get();
 
-    if (!gymDoc.exists) {
+    if (invitationSnapshot.empty) {
       return res.status(404).json({
-        message: "El gimnasio seleccionado no existe",
+        message: "La invitación no existe",
       });
     }
 
-    await db.collection("users").doc(uid).set({
-      uid,
-      name,
-      lastName,
-      email,
-      role,
-      gym_id,
-      birthDate: birthDate || null,
-      gender: gender || null,
-      phone: null,
-      weight: null,
-      height: null,
-      goal: null,
-      level: null,
-      weeklyFrequency: null,
-      injuries: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    const invitationRef = invitationSnapshot.docs[0].ref;
+    const invitation = invitationSnapshot.docs[0].data();
+    const gymDoc = await db.collection("gyms").doc(invitation.gymId).get();
+
+    if (
+      invitation.status !== "active" ||
+      invitation.expiresAt.toMillis() <= Date.now() ||
+      !gymDoc.exists ||
+      gymDoc.data().status !== "active"
+    ) {
+      return res.status(410).json({
+        message: "La invitación ya no está disponible",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (invitation.email && invitation.email !== normalizedEmail) {
+      return res.status(403).json({
+        message: "La invitación pertenece a otro correo electrónico",
+      });
+    }
+
+    createdUser = await auth.createUser({
+      email: normalizedEmail,
+      password,
+      displayName: `${name.trim()} ${lastName.trim()}`,
+      emailVerified: false,
+      disabled: false,
     });
 
-    res.status(201).json({
-      message: "Usuario guardado correctamente en Firestore",
-      uid,
+    const userRef = db.collection("users").doc(createdUser.uid);
+    const membershipRef = db
+      .collection("memberships")
+      .doc(`${invitation.gymId}_${createdUser.uid}`);
+
+    await db.runTransaction(async (transaction) => {
+      const freshInvitation = await transaction.get(invitationRef);
+      const invitationData = freshInvitation.data();
+
+      if (
+        !freshInvitation.exists ||
+        invitationData.status !== "active" ||
+        invitationData.expiresAt.toMillis() <= Date.now()
+      ) {
+        const error = new Error("La invitación ya fue utilizada o expiró");
+        error.status = 409;
+        throw error;
+      }
+
+      transaction.create(userRef, {
+        uid: createdUser.uid,
+        name: name.trim(),
+        lastName: lastName.trim(),
+        email: createdUser.email,
+        role: "client",
+        gym_id: invitation.gymId,
+        birthDate: birthDate || null,
+        gender: gender || null,
+        phone: null,
+        weight: null,
+        height: null,
+        goal: null,
+        level: null,
+        weeklyFrequency: null,
+        injuries: null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.create(membershipRef, {
+        gymId: invitation.gymId,
+        userId: createdUser.uid,
+        status: "active",
+        plan: null,
+        startsAt: admin.firestore.FieldValue.serverTimestamp(),
+        endsAt: null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.update(invitationRef, {
+        status: "used",
+        usedAt: admin.firestore.FieldValue.serverTimestamp(),
+        usedBy: createdUser.uid,
+      });
+    });
+
+    return res.status(201).json({
+      message: "Cuenta creada correctamente",
+      uid: createdUser.uid,
     });
   } catch (error) {
-    res.status(500).json({
+    if (createdUser) {
+      try {
+        await auth.deleteUser(createdUser.uid);
+      } catch (rollbackError) {
+        console.error(
+          "No se pudo revertir el usuario de Firebase:",
+          rollbackError
+        );
+      }
+    }
+
+    if (error.code === "auth/email-already-exists") {
+      return res.status(409).json({
+        message: "Ya existe una cuenta con este correo electrónico",
+      });
+    }
+
+    console.error("Error registrando usuario:", error);
+    return res.status(500).json({
       message: "Error registrando usuario",
-      error: error.message,
     });
   }
 };
 
-const loginUser = async (req, res) => {
+const getCurrentUser = async (req, res) => {
   try {
-    const { uid } = req.body;
-
-    if (!uid) {
-      return res.status(400).json({
-        message: "UID requerido",
-      });
-    }
-
-    const userDoc = await db.collection("users").doc(uid).get();
+    const userDoc = await db.collection("users").doc(req.auth.uid).get();
 
     if (!userDoc.exists) {
       return res.status(404).json({
@@ -96,22 +183,32 @@ const loginUser = async (req, res) => {
       });
     }
 
-    res.json({
-      message: "Login correcto",
-      user: userDoc.data(),
+    const user = publicUserData(userDoc);
+    const gymDoc = user.gym_id
+      ? await db.collection("gyms").doc(user.gym_id).get()
+      : null;
+
+    return res.json({
+      user: {
+        ...user,
+        gym: gymDoc?.exists
+          ? {
+              id: gymDoc.id,
+              name: gymDoc.data().name,
+              city: gymDoc.data().city || null,
+            }
+          : null,
+      },
     });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error login",
-      error: error.message,
+  } catch {
+    return res.status(500).json({
+      message: "Error obteniendo el usuario",
     });
   }
 };
 
 const updateProfile = async (req, res) => {
   try {
-    const { uid } = req.params;
-
     const {
       name,
       lastName,
@@ -124,21 +221,15 @@ const updateProfile = async (req, res) => {
       level,
       weeklyFrequency,
       injuries,
-    } = req.body;
+    } = req.validated.body;
 
-    if (!uid) {
-      return res.status(400).json({
-        message: "UID requerido",
-      });
-    }
-
-    if (!name || !lastName) {
+    if (!isNonEmptyString(name) || !isNonEmptyString(lastName)) {
       return res.status(400).json({
         message: "Nombre y apellido son obligatorios",
       });
     }
 
-    const userRef = db.collection("users").doc(uid);
+    const userRef = db.collection("users").doc(req.auth.uid);
     const userDoc = await userRef.get();
 
     if (!userDoc.exists) {
@@ -148,8 +239,8 @@ const updateProfile = async (req, res) => {
     }
 
     const updatedData = {
-      name,
-      lastName,
+      name: name.trim(),
+      lastName: lastName.trim(),
       birthDate: birthDate || null,
       gender: gender || null,
       phone: phone || null,
@@ -159,28 +250,39 @@ const updateProfile = async (req, res) => {
       level: level || null,
       weeklyFrequency: weeklyFrequency || null,
       injuries: injuries || null,
-      updatedAt: new Date(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
     await userRef.update(updatedData);
 
     const updatedDoc = await userRef.get();
+    const updatedUser = publicUserData(updatedDoc);
+    const gymDoc = updatedUser.gym_id
+      ? await db.collection("gyms").doc(updatedUser.gym_id).get()
+      : null;
 
-    res.json({
+    return res.json({
       message: "Perfil actualizado correctamente",
-      user: updatedDoc.data(),
+      user: {
+        ...updatedUser,
+        gym: gymDoc?.exists
+          ? {
+              id: gymDoc.id,
+              name: gymDoc.data().name,
+              city: gymDoc.data().city || null,
+            }
+          : null,
+      },
     });
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       message: "Error actualizando perfil",
-      error: error.message,
     });
   }
 };
 
 module.exports = {
-  getGyms,
   registerUser,
-  loginUser,
+  getCurrentUser,
   updateProfile,
 };

@@ -1,99 +1,119 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   sendEmailVerification,
+  signOut,
 } from "firebase/auth";
-
 import { firebaseAuth } from "../firebase";
-import { registerUser, getGyms } from "../api/authApi";
+import { getInvitation, registerUser } from "../api/authApi";
+import StatusMessage from "../components/StatusMessage";
 
 const Register = () => {
   const navigate = useNavigate();
-  const [gyms, setGyms] = useState([]);
-
+  const [searchParams] = useSearchParams();
+  const [invitation, setInvitation] = useState(null);
+  const [checkingCode, setCheckingCode] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState(null);
   const [form, setForm] = useState({
+    invitationCode: searchParams.get("code") || "",
     name: "",
     lastName: "",
     email: "",
     birthDate: "",
     gender: "",
-    role: "",
-    gym_id: "",
     password: "",
     confirmPassword: "",
   });
 
-  useEffect(() => {
-    const loadGyms = async () => {
-      try {
-        const data = await getGyms();
-        setGyms(data);
-    } catch  {
-        alert("Error al cargar gimnasios");
-      }
-    };
+  const checkInvitation = async (code = form.invitationCode) => {
+    if (!code.trim()) return;
 
-    loadGyms();
-  }, []);
-
-  const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    setCheckingCode(true);
+    try {
+      const response = await getInvitation(code.trim().toUpperCase());
+      setInvitation(response.invitation);
+      setForm((current) => ({
+        ...current,
+        invitationCode: response.invitation.code,
+      }));
+      setMessage({
+        type: "success",
+        text: `Invitación válida para ${response.invitation.gym.name}`,
+      });
+    } catch (error) {
+      setInvitation(null);
+      setMessage({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          "El código de invitación no es válido",
+      });
+    } finally {
+      setCheckingCode(false);
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleChange = (event) => {
+    setForm({ ...form, [event.target.name]: event.target.value });
+  };
 
-    if (
-      !form.name ||
-      !form.lastName ||
-      !form.email ||
-      !form.password ||
-      !form.confirmPassword ||
-      !form.role ||
-      !form.gym_id
-    ) {
-      alert("Completa todos los campos obligatorios");
-      return;
-    }
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-    if (form.password.length < 6) {
-      alert("La contraseña debe tener mínimo 6 caracteres");
+    if (!invitation) {
+      setMessage({ type: "error", text: "Valida primero tu invitación" });
       return;
     }
 
     if (form.password !== form.confirmPassword) {
-      alert("Las contraseñas no coinciden");
+      setMessage({ type: "error", text: "Las contraseñas no coinciden" });
       return;
     }
 
+    let accountCreated = false;
+    setSubmitting(true);
+
     try {
-      const userCredential = await createUserWithEmailAndPassword(
+      await registerUser({
+        invitationCode: form.invitationCode,
+        name: form.name,
+        lastName: form.lastName,
+        email: form.email,
+        password: form.password,
+        birthDate: form.birthDate,
+        gender: form.gender,
+      });
+      accountCreated = true;
+
+      const credential = await signInWithEmailAndPassword(
         firebaseAuth,
         form.email,
         form.password
       );
+      await sendEmailVerification(credential.user);
+      await signOut(firebaseAuth);
 
-      await sendEmailVerification(userCredential.user);
+      navigate("/login", {
+        replace: true,
+        state: { registered: true },
+      });
+    } catch (error) {
+      if (firebaseAuth.currentUser) await signOut(firebaseAuth);
 
-      await registerUser({
-        uid: userCredential.user.uid,
-        name: form.name,
-        lastName: form.lastName,
-        email: form.email,
-        role: form.role,
-        gym_id: form.gym_id,
-        birthDate: form.birthDate,
-        gender: form.gender,
+      setMessage({
+        type: accountCreated ? "success" : "error",
+        text: accountCreated
+          ? "Tu cuenta fue creada. Inicia sesión para solicitar otro correo de verificación."
+          : error.response?.data?.message ||
+            error.message ||
+            "No se pudo crear la cuenta",
       });
 
-      alert("Cuenta creada. Revisa tu correo para verificar tu cuenta.");
-      navigate("/login");
-    } catch (error) {
-      alert("Error al registrar: " + error.message);
+      if (accountCreated) navigate("/login");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -103,84 +123,100 @@ const Register = () => {
         <h1>
           <span>fit</span>Lab
         </h1>
+        <h2>Únete a tu gimnasio</h2>
+        <p>Necesitas el código enviado por el administrador.</p>
+        <StatusMessage message={message} />
 
-        <h2>Crea tu cuenta</h2>
-        <p>Completa tus datos para comenzar</p>
-
-        <form onSubmit={handleSubmit}>
-          <div className="grid-2">
-            <input
-              name="name"
-              placeholder="Nombre"
-              value={form.name}
-              onChange={handleChange}
-            />
-
-            <input
-              name="lastName"
-              placeholder="Apellido"
-              value={form.lastName}
-              onChange={handleChange}
-            />
-          </div>
-
+        <div className="code-row">
           <input
-            name="email"
-            type="email"
-            placeholder="Correo electrónico"
-            value={form.email}
-            onChange={handleChange}
+            name="invitationCode"
+            value={form.invitationCode}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                invitationCode: e.target.value.toUpperCase(),
+              })
+            }
+            placeholder="Código de invitación"
           />
+          <button
+            type="button"
+            disabled={checkingCode}
+            onClick={() => checkInvitation()}
+          >
+            {checkingCode ? "Validando..." : "Validar"}
+          </button>
+        </div>
 
-          <div className="grid-2">
+        {invitation && (
+          <form onSubmit={handleSubmit}>
+            <div className="grid-2">
+              <input
+                name="name"
+                placeholder="Nombre"
+                value={form.name}
+                onChange={handleChange}
+                required
+              />
+              <input
+                name="lastName"
+                placeholder="Apellido"
+                value={form.lastName}
+                onChange={handleChange}
+                required
+              />
+            </div>
             <input
-              name="birthDate"
-              type="date"
-              value={form.birthDate}
+              name="email"
+              type="email"
+              placeholder="Correo electrónico"
+              value={form.email}
               onChange={handleChange}
+              required
             />
-
-            <select name="gender" value={form.gender} onChange={handleChange}>
-              <option value="">Género</option>
-              <option value="male">Masculino</option>
-              <option value="female">Femenino</option>
-              <option value="other">Otro</option>
-            </select>
-          </div>
-
-          <select name="role" value={form.role} onChange={handleChange}>
-            <option value="">Selecciona tu rol</option>
-            <option value="owner">Dueño</option>
-            <option value="client">Cliente</option>
-          </select>
-
-          <select name="gym_id" value={form.gym_id} onChange={handleChange}>
-            <option value="">Selecciona tu gimnasio</option>
-            {gyms.map((gym) => (
-              <option key={gym.id} value={gym.id}>
-                {gym.name}
-              </option>
-            ))}
-          </select>
-
-          <input
-            name="password"
-            type="password"
-            placeholder="Contraseña"
-            value={form.password}
-            onChange={handleChange}
-          />
-
-          <input
-            name="confirmPassword"
-            type="password"
-            placeholder="Confirmar contraseña"
-            value={form.confirmPassword}
-            onChange={handleChange}
-          />
-
-          <button type="submit">Crear cuenta</button>
-        </form>
+            <div className="grid-2">
+              <input
+                name="birthDate"
+                type="date"
+                value={form.birthDate}
+                onChange={handleChange}
+              />
+              <select
+                name="gender"
+                value={form.gender}
+                onChange={handleChange}
+              >
+                <option value="">Género</option>
+                <option value="male">Masculino</option>
+                <option value="female">Femenino</option>
+                <option value="other">Otro</option>
+              </select>
+            </div>
+            <div className="grid-2">
+              <input
+                name="password"
+                type="password"
+                minLength="6"
+                placeholder="Contraseña"
+                value={form.password}
+                onChange={handleChange}
+                required
+              />
+              <input
+                name="confirmPassword"
+                type="password"
+                minLength="6"
+                placeholder="Confirmar contraseña"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                required
+              />
+            </div>
+            <button type="submit" disabled={submitting}>
+              {submitting ? "Creando cuenta..." : "Crear cuenta"}
+            </button>
+          </form>
+        )}
 
         <p>
           ¿Ya tienes cuenta? <Link to="/login">Inicia sesión</Link>

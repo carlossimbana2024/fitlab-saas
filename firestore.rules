@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // FitLab accesses Firestore through the authenticated Express API.
+    // Firebase Admin bypasses these rules; browser clients have no direct access.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

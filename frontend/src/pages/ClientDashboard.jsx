@@ -1,261 +1,293 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import {
+  cancelReservation,
+  createProgress,
+  getAttendances,
+  getMyReservations,
+  getProgress,
+  getSessions,
+  requestAttendance,
+  reserveSession,
+} from "../api/tenantApi";
+import DashboardHeader from "../components/DashboardHeader";
+import StatusMessage from "../components/StatusMessage";
+import ClientProfile from "../components/ClientProfile";
+import { formatDateTime } from "../utils/date";
+
+const errorText = (error) =>
+  error.response?.data?.message || error.message || "Ocurrió un error";
 
 const ClientDashboard = () => {
-  const { user, logout, updateProfile, changePassword } = useAuth();
-
-  const [editing, setEditing] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
-
-  const [form, setForm] = useState({
-    name: user?.name || "",
-    lastName: user?.lastName || "",
-    birthDate: user?.birthDate || "",
-    gender: user?.gender || "",
-    phone: user?.phone || "",
-    weight: user?.weight || "",
-    height: user?.height || "",
-    goal: user?.goal || "",
-    level: user?.level || "",
-    weeklyFrequency: user?.weeklyFrequency || "",
-    injuries: user?.injuries || "",
+  const { user, logout } = useAuth();
+  const [sessions, setSessions] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [attendances, setAttendances] = useState([]);
+  const [progress, setProgress] = useState([]);
+  const [progressForm, setProgressForm] = useState({
+    recordedAt: new Date().toISOString().slice(0, 10),
+    weight: "",
+    bodyFat: "",
+    notes: "",
   });
+  const [message, setMessage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
 
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
+  const activeReservations = useMemo(
+    () =>
+      new Map(
+        reservations
+          .filter((item) => item.status === "confirmed")
+          .map((item) => [item.sessionId, item])
+      ),
+    [reservations]
+  );
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const attendanceBySession = useMemo(
+    () => new Map(attendances.map((item) => [item.sessionId, item])),
+    [attendances]
+  );
 
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-
-    if (!form.name || !form.lastName) {
-      alert("Nombre y apellido son obligatorios");
-      return;
-    }
-
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
     try {
-      await updateProfile(form);
-      alert("Perfil actualizado correctamente");
-      setEditing(false);
+      const [sessionData, reservationData, attendanceData, progressData] =
+        await Promise.all([
+          getSessions(),
+          getMyReservations(),
+          getAttendances(),
+          getProgress(),
+        ]);
+      setSessions(sessionData.sessions);
+      setReservations(reservationData.reservations);
+      setAttendances(attendanceData.attendances);
+      setProgress(progressData.entries);
     } catch (error) {
-      alert("Error al actualizar perfil: " + error.message);
+      setMessage({ type: "error", text: errorText(error) });
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-
-    if (
-      !passwordForm.currentPassword ||
-      !passwordForm.newPassword ||
-      !passwordForm.confirmPassword
-    ) {
-      alert("Completa todos los campos de contraseña");
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 6) {
-      alert("La nueva contraseña debe tener mínimo 6 caracteres");
-      return;
-    }
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert("Las nuevas contraseñas no coinciden");
-      return;
-    }
-
+  const addProgress = async (event) => {
+    event.preventDefault();
+    setBusyId("progress");
     try {
-      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
-
-      alert("Contraseña actualizada correctamente");
-
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
+      const response = await createProgress({
+        ...progressForm,
+        recordedAt: new Date(`${progressForm.recordedAt}T12:00:00`).toISOString(),
+        weight: progressForm.weight || undefined,
+        bodyFat: progressForm.bodyFat || undefined,
       });
-
-      setChangingPassword(false);
+      setProgress((current) => [response.entry, ...current]);
+      setProgressForm({
+        recordedAt: new Date().toISOString().slice(0, 10),
+        weight: "",
+        bodyFat: "",
+        notes: "",
+      });
+      setMessage({ type: "success", text: response.message });
     } catch (error) {
-      alert("Error al cambiar contraseña: " + error.message);
+      setMessage({ type: "error", text: errorText(error) });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(loadDashboard, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadDashboard]);
+
+  const runAction = async (sessionId, action) => {
+    setBusyId(sessionId);
+    try {
+      const response = await action();
+      setMessage({ type: "success", text: response.message });
+      await loadDashboard();
+    } catch (error) {
+      setMessage({ type: "error", text: errorText(error) });
+    } finally {
+      setBusyId(null);
     }
   };
 
   return (
     <main className="dashboard-page">
-      <section className="dashboard-header">
-        <div>
-          <h1>Hola, {user?.name}</h1>
-          <p>Bienvenido a tu panel de entrenamiento</p>
-        </div>
-
-        <button onClick={logout}>Cerrar sesión</button>
-      </section>
+      <DashboardHeader
+        title={`Hola, ${user?.name}`}
+        subtitle={user?.gym?.name || "Tu gimnasio"}
+        onLogout={logout}
+      />
+      <StatusMessage message={message} />
 
       <section className="dashboard-grid">
         <article className="dashboard-card">
+          <h2>Mi cuenta</h2>
+          <p>
+            <strong>Nombre:</strong> {user?.name} {user?.lastName}
+          </p>
+          <p>
+            <strong>Correo:</strong> {user?.email}
+          </p>
+          <p>
+            <strong>Gimnasio:</strong> {user?.gym?.name || "No disponible"}
+          </p>
+          <p>
+            <strong>Objetivo:</strong> {user?.goal || "No registrado"}
+          </p>
+        </article>
+
+        <article className="dashboard-card">
           <h2>Resumen</h2>
-          <p><strong>Nombre:</strong> {user?.name} {user?.lastName}</p>
-          <p><strong>Email:</strong> {user?.email}</p>
-          <p><strong>Gimnasio:</strong> {user?.gym_id}</p>
-          <p><strong>Teléfono:</strong> {user?.phone || "No registrado"}</p>
-        </article>
-
-        <article className="dashboard-card">
-          <h2>Mi perfil físico</h2>
-          <p><strong>Peso:</strong> {user?.weight ? `${user.weight} kg` : "No registrado"}</p>
-          <p><strong>Altura:</strong> {user?.height ? `${user.height} cm` : "No registrado"}</p>
-          <p><strong>Objetivo:</strong> {user?.goal || "No registrado"}</p>
-          <p><strong>Nivel:</strong> {user?.level || "No registrado"}</p>
-          <p><strong>Frecuencia semanal:</strong> {user?.weeklyFrequency || "No registrado"}</p>
-          <p><strong>Lesiones:</strong> {user?.injuries || "No registrado"}</p>
-
-          <button onClick={() => setEditing(true)}>
-            {user?.weight ? "Actualizar perfil físico" : "Completar perfil físico"}
-          </button>
-        </article>
-
-        <article className="dashboard-card">
-          <h2>Mis clases</h2>
-          <p>No tienes clases reservadas todavía.</p>
-          <button>Ver clases disponibles</button>
-        </article>
-
-        <article className="dashboard-card">
-          <h2>Mi progreso</h2>
-          <p>Aquí verás tu evolución física y asistencia.</p>
-          <button>Ver progreso</button>
-        </article>
-
-        <article className="dashboard-card">
-          <h2>Configuración de cuenta</h2>
-          <p>Actualiza tu información personal, física o cambia tu contraseña.</p>
-          <button onClick={() => setEditing(true)}>Editar perfil</button>
-          <button onClick={() => setChangingPassword(true)}>
-            Cambiar contraseña
-          </button>
+          <p>
+            <strong>Reservas activas:</strong> {activeReservations.size}
+          </p>
+          <p>
+            <strong>Asistencias confirmadas:</strong>{" "}
+            {attendances.filter((item) => item.status === "confirmed").length}
+          </p>
+          <p>
+            Las asistencias registradas por ti requieren confirmación del
+            gimnasio.
+          </p>
         </article>
       </section>
 
-      {editing && (
-        <section className="profile-modal">
-          <div className="profile-form-card">
-            <h2>Actualizar perfil</h2>
-            <p>Completa o actualiza tu información personal y física.</p>
+      <article className="dashboard-card dashboard-section">
+        <h2>Próximas actividades</h2>
+        {loading ? (
+          <p>Cargando horarios...</p>
+        ) : (
+          <div className="item-list">
+            {sessions.length === 0 && <p>No hay sesiones disponibles.</p>}
+            {sessions.map((session) => {
+              const reservation = activeReservations.get(session.id);
+              const attendance = attendanceBySession.get(session.id);
+              const full = (session.reservedCount || 0) >= session.capacity;
 
-            <form onSubmit={handleUpdateProfile}>
-              <div className="grid-2">
-                <input name="name" placeholder="Nombre" value={form.name} onChange={handleChange} />
-                <input name="lastName" placeholder="Apellido" value={form.lastName} onChange={handleChange} />
-              </div>
-
-              <div className="grid-2">
-                <input name="birthDate" type="date" value={form.birthDate || ""} onChange={handleChange} />
-
-                <select name="gender" value={form.gender || ""} onChange={handleChange}>
-                  <option value="">Género</option>
-                  <option value="male">Masculino</option>
-                  <option value="female">Femenino</option>
-                  <option value="other">Otro</option>
-                </select>
-              </div>
-
-              <input name="phone" placeholder="Teléfono" value={form.phone || ""} onChange={handleChange} />
-
-              <div className="grid-2">
-                <input name="weight" type="number" placeholder="Peso en kg" value={form.weight || ""} onChange={handleChange} />
-                <input name="height" type="number" placeholder="Altura en cm" value={form.height || ""} onChange={handleChange} />
-              </div>
-
-              <select name="goal" value={form.goal || ""} onChange={handleChange}>
-                <option value="">Objetivo principal</option>
-                <option value="Bajar grasa">Bajar grasa</option>
-                <option value="Ganar masa muscular">Ganar masa muscular</option>
-                <option value="Mejorar fuerza">Mejorar fuerza</option>
-                <option value="Mejorar resistencia">Mejorar resistencia</option>
-                <option value="Salud general">Salud general</option>
-              </select>
-
-              <select name="level" value={form.level || ""} onChange={handleChange}>
-                <option value="">Nivel de experiencia</option>
-                <option value="Principiante">Principiante</option>
-                <option value="Intermedio">Intermedio</option>
-                <option value="Avanzado">Avanzado</option>
-              </select>
-
-              <select name="weeklyFrequency" value={form.weeklyFrequency || ""} onChange={handleChange}>
-                <option value="">Frecuencia semanal</option>
-                <option value="2 días por semana">2 días por semana</option>
-                <option value="3 días por semana">3 días por semana</option>
-                <option value="4 días por semana">4 días por semana</option>
-                <option value="5 días por semana">5 días por semana</option>
-                <option value="6 días por semana">6 días por semana</option>
-              </select>
-
-              <textarea
-                name="injuries"
-                placeholder="Lesiones, molestias o restricciones físicas"
-                value={form.injuries || ""}
-                onChange={handleChange}
-              />
-
-              <div className="form-actions">
-                <button type="submit">Guardar cambios</button>
-                <button type="button" onClick={() => setEditing(false)}>Cancelar</button>
-              </div>
-            </form>
+              return (
+                <div className="list-item session-item" key={session.id}>
+                  <div>
+                    <strong>{session.activityName}</strong>
+                    <p>{formatDateTime(session.startsAt)}</p>
+                    <span>
+                      {session.location || "Ubicación por confirmar"} ·{" "}
+                      {session.reservedCount || 0}/{session.capacity} cupos
+                    </span>
+                  </div>
+                  <div className="inline-actions">
+                    {!reservation ? (
+                      <button
+                        disabled={busyId === session.id || full}
+                        onClick={() =>
+                          runAction(session.id, () =>
+                            reserveSession(session.id)
+                          )
+                        }
+                      >
+                        {full ? "Sin cupos" : "Reservar"}
+                      </button>
+                    ) : (
+                      <>
+                        {!attendance && (
+                          <button
+                            disabled={busyId === session.id}
+                            onClick={() =>
+                              runAction(session.id, () =>
+                                requestAttendance(session.id)
+                              )
+                            }
+                          >
+                            Registrar asistencia
+                          </button>
+                        )}
+                        {attendance && (
+                          <span className={`status-pill ${attendance.status}`}>
+                            Asistencia: {attendance.status}
+                          </span>
+                        )}
+                        <button
+                          className="button-secondary"
+                          disabled={busyId === session.id}
+                          onClick={() =>
+                            runAction(session.id, () =>
+                              cancelReservation(session.id)
+                            )
+                          }
+                        >
+                          Cancelar reserva
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </section>
-      )}
-
-      {changingPassword && (
-        <section className="profile-modal">
-          <div className="profile-form-card">
-            <h2>Cambiar contraseña</h2>
-            <p>Por seguridad, ingresa tu contraseña actual.</p>
-
-            <form onSubmit={handleChangePassword}>
-              <input
-                type="password"
-                placeholder="Contraseña actual"
-                value={passwordForm.currentPassword}
-                onChange={(e) =>
-                  setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
-                }
-              />
-
-              <input
-                type="password"
-                placeholder="Nueva contraseña"
-                value={passwordForm.newPassword}
-                onChange={(e) =>
-                  setPasswordForm({ ...passwordForm, newPassword: e.target.value })
-                }
-              />
-
-              <input
-                type="password"
-                placeholder="Confirmar nueva contraseña"
-                value={passwordForm.confirmPassword}
-                onChange={(e) =>
-                  setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
-                }
-              />
-
-              <div className="form-actions">
-                <button type="submit">Guardar contraseña</button>
-                <button type="button" onClick={() => setChangingPassword(false)}>Cancelar</button>
-              </div>
-            </form>
+        )}
+      </article>
+      <article className="dashboard-card dashboard-section">
+        <h2>Mi progreso</h2>
+        <form onSubmit={addProgress}>
+          <div className="grid-2">
+            <input
+              type="date"
+              value={progressForm.recordedAt}
+              onChange={(e) =>
+                setProgressForm({
+                  ...progressForm,
+                  recordedAt: e.target.value,
+                })
+              }
+              required
+            />
+            <input
+              type="number"
+              min="20"
+              max="400"
+              step="0.1"
+              value={progressForm.weight}
+              onChange={(e) =>
+                setProgressForm({ ...progressForm, weight: e.target.value })
+              }
+              placeholder="Peso en kg"
+            />
           </div>
-        </section>
-      )}
+          <input
+            type="number"
+            min="1"
+            max="80"
+            step="0.1"
+            value={progressForm.bodyFat}
+            onChange={(e) =>
+              setProgressForm({ ...progressForm, bodyFat: e.target.value })
+            }
+            placeholder="Porcentaje de grasa (opcional)"
+          />
+          <textarea
+            value={progressForm.notes}
+            onChange={(e) =>
+              setProgressForm({ ...progressForm, notes: e.target.value })
+            }
+            placeholder="Observaciones"
+          />
+          <button disabled={busyId === "progress"}>Registrar progreso</button>
+        </form>
+        <div className="item-list">
+          {progress.slice(0, 5).map((entry) => (
+            <div className="list-item" key={entry.id}>
+              <strong>{formatDateTime(entry.recordedAt)}</strong>
+              <span>
+                {entry.weight ? `${entry.weight} kg` : ""}
+                {entry.bodyFat ? ` · ${entry.bodyFat}% grasa` : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      </article>
+      <ClientProfile onMessage={setMessage} />
     </main>
   );
 };

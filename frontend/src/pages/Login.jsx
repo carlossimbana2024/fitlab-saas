@@ -1,85 +1,101 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, Eye } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import StatusMessage from "../components/StatusMessage";
 
 const Login = () => {
-    const { login } = useAuth();
-    const navigate = useNavigate();
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [form, setForm] = useState({ email: "", password: "" });
 
-    const [form, setForm] = useState({
-    email: "",
-    password: "",
-    });
-
-const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!form.email || !form.password) {
-    alert("Completa todos los campos");
-    return;
-    }
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
 
     try {
-    const user = await login(form.email, form.password);
-
-    if (user.role === "owner") {
-        navigate("/owner-dashboard");
-    } else {
-        navigate("/client-dashboard");
-    }
+      const user = await login(form.email, form.password);
+      navigate(user.role === "owner" ? "/owner-dashboard" : "/client-dashboard");
     } catch (error) {
-    alert(error.message);
+      setMessage({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          error.message ||
+          "No se pudo iniciar sesión",
+      });
+    } finally {
+      setSubmitting(false);
     }
-};
+  };
 
-    return (
+  return (
     <section className="auth-page">
-        <div className="auth-card">
+      <div className="auth-card">
         <h1>
-            <span>fit</span>Lab
+          <span>fit</span>Lab
         </h1>
-
         <h2>¡Bienvenido de nuevo!</h2>
         <p>Inicia sesión para continuar</p>
+        <StatusMessage message={message} />
 
         <form onSubmit={handleSubmit}>
-            <label>Correo electrónico</label>
-            <div className="input-box">
+          <label htmlFor="login-email">Correo electrónico</label>
+          <div className="input-box">
             <Mail size={20} />
             <input
-                type="email"
-                placeholder="tu@email.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              id="login-email"
+              type="email"
+              autoComplete="email"
+              placeholder="tu@email.com"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              required
             />
-            </div>
+          </div>
 
-            <label>Contraseña</label>
-            <div className="input-box">
+          <label htmlFor="login-password">Contraseña</label>
+          <div className="input-box">
             <Lock size={20} />
             <input
-                type="password"
-                placeholder="********"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              id="login-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="********"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
             />
-            <Eye size={20} />
-            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={
+                showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+              }
+              onClick={() => setShowPassword((value) => !value)}
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
 
-            <Link to="/forgot-password" className="link">
+          <Link to="/forgot-password" className="link">
             ¿Olvidaste tu contraseña?
-            </Link>
-
-            <button type="submit">Iniciar sesión</button>
+          </Link>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Ingresando..." : "Iniciar sesión"}
+          </button>
         </form>
 
         <p>
-            ¿No tienes cuenta? <Link to="/register">Regístrate aquí</Link>
+          ¿No tienes cuenta? <Link to="/register">Regístrate aquí</Link>
         </p>
-        </div>
+      </div>
     </section>
-    );
+  );
 };
 
 export default Login;

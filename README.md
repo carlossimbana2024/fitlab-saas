@@ -1,277 +1,158 @@
-# FitLab SaaS 
+# FitLab SaaS
 
-FitLab SaaS es una aplicación web fullstack orientada a la gestión de gimnasios y usuarios fitness.  
-El proyecto fue desarrollado utilizando React + Vite para el frontend y Node.js + Express para el backend, integrando Firebase Authentication y Firestore como servicios principales de autenticación y almacenamiento.
+Sistema multitenant para gimnasios construido con React, Express, Firebase
+Authentication y Firestore.
 
----
+## Funcionalidad actual
 
-# Tecnologías utilizadas
+- Autenticación con correo verificado y token Firebase validado en backend.
+- Roles `owner` y `client` aplicados en frontend y API.
+- Registro de clientes mediante invitación de un solo uso.
+- Aislamiento por gimnasio derivado del usuario autenticado.
+- Gestión de gimnasio, miembros, actividades y sesiones.
+- Reservas con control transaccional de cupos y duplicados.
+- Asistencia solicitada por el cliente y confirmada por el administrador.
+- Historial de progreso físico.
+- Edición de perfil y contraseña.
 
-## Frontend
-- React
-- Vite
-- React Router DOM
-- Context API
-- Axios
-- Lucide React
-- CSS
+## Colecciones Firestore
 
-## Backend
-- Node.js
-- Express
-- Firebase Admin SDK
-- Firestore
+Firestore crea las colecciones al guardar el primer documento:
 
-## Servicios externos
-- Firebase Authentication
-- Firebase Firestore
-- Vercel (Frontend Deploy)
-- GitHub
+```text
+gyms
+users
+memberships
+invitations
+activities
+classSessions
+reservations
+attendances
+progressEntries
+```
 
----
+El esquema completo está en [docs/FIRESTORE_SCHEMA.md](docs/FIRESTORE_SCHEMA.md).
 
-# Estructura del proyecto
+## Configuración
 
 ```bash
-fitlab-fullstack/
-│
-├── frontend/
-├── backend/
-└── README.md
+cd backend
+npm install
+copy .env.example .env
+npm run dev
 ```
 
----
+```bash
+cd frontend
+npm install
+copy .env.example .env
+npm run dev
+```
 
-# Funcionalidades implementadas
+## Despliegue
 
-## Autenticación
-- Registro de usuarios
-- Inicio de sesión
-- Verificación de correo electrónico
-- Recuperación de contraseña
-- Cierre de sesión
-- Protección de rutas privadas
+### Frontend en Vercel
 
-## Gestión de usuarios
-- Mostrar perfil del usuario
-- Actualizar perfil
-- Actualizar contraseña
-- Persistencia de sesión con localStorage
+Configura el proyecto con:
 
-## Dashboard cliente
-- Resumen del usuario
-- Perfil físico
-- Configuración de cuenta
-- Progreso físico
-- Base para futuras clases y reservas
+- Root Directory: `frontend`
+- Framework Preset: `Vite`
+- Build Command: `npm run build`
+- Output Directory: `dist`
 
-## Backend API
-- Obtener gimnasios
-- Registrar usuarios en Firestore
-- Login backend
-- Actualización de perfil
-- Integración Firebase Admin
-
----
-
-# Cómo funciona el sistema
-
-El sistema está dividido en dos partes:
-
-## Frontend
-Desarrollado en React + Vite.  
-Se encarga de:
-- mostrar interfaces
-- manejar formularios
-- consumir la API backend
-- gestionar autenticación del usuario
-
-## Backend
-Desarrollado en Node.js + Express.  
-Se encarga de:
-- lógica de negocio
-- conexión con Firestore
-- validaciones
-- rutas API
-- control de usuarios
-
----
-
-# Firebase
-
-Se utilizaron dos servicios principales:
-
-## Firebase Authentication
-Gestiona:
-- login
-- registro
-- verificación de correo
-- recuperación de contraseña
-
-## Firestore
-Almacena:
-- usuarios
-- gimnasios
-- datos físicos
-- roles
-
----
-
-# Comunicación Frontend ↔ Backend
-
-El frontend se conecta al backend usando Axios mediante:
+Variables de producción:
 
 ```env
-VITE_API_URL=http://localhost:4000/api
+VITE_API_URL=https://TU-BACKEND.onrender.com/api
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
 ```
 
-Ejemplo:
+### Backend en Render
 
-```js
-axios.get(`${API_URL}/auth/gyms`)
-```
+Crea un Web Service conectado al mismo repositorio:
 
----
+- Root Directory: `backend`
+- Build Command: `npm install`
+- Start Command: `npm start`
 
-# Variables de entorno
-
-## Frontend `.env`
+Variables:
 
 ```env
-VITE_API_URL=
-```
-
-## Backend `.env`
-
-```env
-PORT=4000
-
+CORS_ORIGINS=https://TU-FRONTEND.vercel.app
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
 ```
 
----
+Render asigna `PORT` automáticamente. Después de obtener la URL pública del
+backend, actualiza `VITE_API_URL` en Vercel y vuelve a desplegar el frontend.
 
-# Seguridad
+El backend admite credenciales Firebase mediante variables de entorno. Para
+desarrollo también conserva compatibilidad con
+`backend/firebase-service-account.json`.
 
-El proyecto utiliza:
-- rutas protegidas
-- verificación de email
-- validaciones frontend/backend
-- Firebase Authentication
-- variables de entorno
-- `.gitignore` configurado correctamente
+## Reglas Firestore
 
-Archivos sensibles ignorados:
-- `.env`
-- `firebase-service-account.json`
-- `node_modules`
-
----
-
-# Instalación local
-
-## 1. Clonar repositorio
+La aplicación accede a Firestore mediante Firebase Admin en el backend. Las
+reglas incluidas bloquean el acceso directo desde navegadores:
 
 ```bash
-git clone https://github.com/carlossimbana2024/fitlab-saas.git
+firebase deploy --only firestore:rules
 ```
 
----
+Debes asociar `firestore.rules` al proyecto en `firebase.json` si todavía no
+utilizas Firebase CLI.
 
-## 2. Instalar frontend
+## Flujo de usuarios
 
-```bash
-cd frontend
-npm install
-```
+1. Un dueño existente inicia sesión.
+2. Genera una invitación desde su dashboard.
+3. Comparte el código con el cliente.
+4. El cliente se registra y recibe rol `client`.
+5. El sistema crea su perfil y membresía activa.
 
----
+El onboarding para crear gimnasios y sus primeros dueños se mantiene separado
+del registro público. Hasta implementar facturación y verificación comercial,
+los primeros dueños deben provisionarse de forma administrativa.
 
-## 3. Instalar backend
+## Scripts
 
-```bash
-cd backend
-npm install
-```
-
----
-
-# Ejecutar proyecto
-
-## Backend
+Backend:
 
 ```bash
-cd backend
 npm run dev
+npm start
+npm test
 ```
 
-Servidor:
-```txt
-http://localhost:4000
-```
-
----
-
-## Frontend
+Frontend:
 
 ```bash
-cd frontend
 npm run dev
+npm run lint
+npm run build
 ```
 
-Aplicación:
-```txt
-http://localhost:5173
-```
+## Seguridad
 
----
+- La API nunca acepta un UID o `gymId` operativo como fuente de autorización.
+- El UID se obtiene del ID token Firebase.
+- El gimnasio se obtiene de `users/{uid}.gym_id`.
+- Las operaciones de dueño verifican rol y pertenencia.
+- Las membresías inactivas bloquean operaciones del cliente.
+- CORS, rate limiting, validación Zod y manejador central de errores están
+  habilitados.
 
-# Deploy
+## Próximas etapas
 
-## Frontend
-Desplegado en:
-- Vercel
-
-## Backend
-Preparado para:
-- Render
-- Railway
-
----
-
-# Funcionalidades futuras
-
-- Sistema de clases
-- Reservas
-- Dashboard administrador avanzado
-- Estadísticas
-- Rutinas personalizadas
-- Control de asistencia
-- Membresías
-- Multi gimnasio
-- Pagos SaaS
-- Responsive avanzado
-- Notificaciones
-
----
-# Imágenes de  funcionamiento
-<img width="604" height="715" alt="image" src="https://github.com/user-attachments/assets/92ce7483-5448-4378-b46e-69d7b79620be" />
-
-<img width="739" height="1600" alt="image" src="https://github.com/user-attachments/assets/ee1e2bbe-1be5-4a49-a90c-6f16bca0f437" />
-
----
-
-# Autores
-
-Carlos Simbaña  
-Carlos Serrano 
-Tecnología Superior en Desarrollo de Software  
-Escuela Politécnica Nacional
-
----
-
-# Licencia
-
-Proyecto académico y de portafolio.
+- Onboarding de propietarios y creación de organizaciones.
+- Fotos de progreso mediante Firebase Storage.
+- QR firmado para asistencia.
+- Pagos y renovación automática de membresías.
+- Paginación con cursores para gimnasios con grandes volúmenes.
+- Pruebas de integración con Firebase Emulator Suite.
