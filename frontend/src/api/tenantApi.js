@@ -57,9 +57,7 @@ export const createProgress = (payload) =>
 export const getMemberships = () => api.get("/memberships").then(data);
 export const updateMembershipStatus = (id, status) =>
   api.patch(`/memberships/${id}`, { status }).then(data);
-<<<<<<< HEAD
 
 export const askFitlabAI = (payload) =>
   api.post("/ai/chat", payload).then(data);
-=======
->>>>>>> 2d0cd0ac9ece7a10989a5dc9394922d90d63bcca
+

@@ -13,25 +13,27 @@ import {
 import DashboardHeader from "../components/DashboardHeader";
 import StatusMessage from "../components/StatusMessage";
 import ClientProfile from "../components/ClientProfile";
-import { formatDateTime } from "../utils/date";
-
 import FitlabAssistant from "../components/FitlabAssistant";
+import { formatDateTime } from "../utils/date";
 
 const errorText = (error) =>
   error.response?.data?.message || error.message || "Ocurrió un error";
 
 const ClientDashboard = () => {
   const { user, logout } = useAuth();
+
   const [sessions, setSessions] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [attendances, setAttendances] = useState([]);
   const [progress, setProgress] = useState([]);
+
   const [progressForm, setProgressForm] = useState({
     recordedAt: new Date().toISOString().slice(0, 10),
     weight: "",
     bodyFat: "",
     notes: "",
   });
+
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -53,6 +55,7 @@ const ClientDashboard = () => {
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
+
     try {
       const [sessionData, reservationData, attendanceData, progressData] =
         await Promise.all([
@@ -61,10 +64,11 @@ const ClientDashboard = () => {
           getAttendances(),
           getProgress(),
         ]);
-      setSessions(sessionData.sessions);
-      setReservations(reservationData.reservations);
-      setAttendances(attendanceData.attendances);
-      setProgress(progressData.entries);
+
+      setSessions(sessionData.sessions || []);
+      setReservations(reservationData.reservations || []);
+      setAttendances(attendanceData.attendances || []);
+      setProgress(progressData.entries || []);
     } catch (error) {
       setMessage({ type: "error", text: errorText(error) });
     } finally {
@@ -72,9 +76,15 @@ const ClientDashboard = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(loadDashboard, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadDashboard]);
+
   const addProgress = async (event) => {
     event.preventDefault();
     setBusyId("progress");
+
     try {
       const response = await createProgress({
         ...progressForm,
@@ -82,13 +92,16 @@ const ClientDashboard = () => {
         weight: progressForm.weight || undefined,
         bodyFat: progressForm.bodyFat || undefined,
       });
+
       setProgress((current) => [response.entry, ...current]);
+
       setProgressForm({
         recordedAt: new Date().toISOString().slice(0, 10),
         weight: "",
         bodyFat: "",
         notes: "",
       });
+
       setMessage({ type: "success", text: response.message });
     } catch (error) {
       setMessage({ type: "error", text: errorText(error) });
@@ -97,13 +110,9 @@ const ClientDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    const timer = window.setTimeout(loadDashboard, 0);
-    return () => window.clearTimeout(timer);
-  }, [loadDashboard]);
-
   const runAction = async (sessionId, action) => {
     setBusyId(sessionId);
+
     try {
       const response = await action();
       setMessage({ type: "success", text: response.message });
@@ -118,10 +127,11 @@ const ClientDashboard = () => {
   return (
     <main className="dashboard-page">
       <DashboardHeader
-        title={`Hola, ${user?.name}`}
+        title={`Hola, ${user?.name || "cliente"}`}
         subtitle={user?.gym?.name || "Tu gimnasio"}
         onLogout={logout}
       />
+
       <StatusMessage message={message} />
 
       <section className="dashboard-grid">
@@ -159,11 +169,13 @@ const ClientDashboard = () => {
 
       <article className="dashboard-card dashboard-section">
         <h2>Próximas actividades</h2>
+
         {loading ? (
           <p>Cargando horarios...</p>
         ) : (
           <div className="item-list">
             {sessions.length === 0 && <p>No hay sesiones disponibles.</p>}
+
             {sessions.map((session) => {
               const reservation = activeReservations.get(session.id);
               const attendance = attendanceBySession.get(session.id);
@@ -179,14 +191,13 @@ const ClientDashboard = () => {
                       {session.reservedCount || 0}/{session.capacity} cupos
                     </span>
                   </div>
+
                   <div className="inline-actions">
                     {!reservation ? (
                       <button
                         disabled={busyId === session.id || full}
                         onClick={() =>
-                          runAction(session.id, () =>
-                            reserveSession(session.id)
-                          )
+                          runAction(session.id, () => reserveSession(session.id))
                         }
                       >
                         {full ? "Sin cupos" : "Reservar"}
@@ -205,11 +216,13 @@ const ClientDashboard = () => {
                             Registrar asistencia
                           </button>
                         )}
+
                         {attendance && (
                           <span className={`status-pill ${attendance.status}`}>
                             Asistencia: {attendance.status}
                           </span>
                         )}
+
                         <button
                           className="button-secondary"
                           disabled={busyId === session.id}
@@ -230,53 +243,69 @@ const ClientDashboard = () => {
           </div>
         )}
       </article>
+
       <article className="dashboard-card dashboard-section">
         <h2>Mi progreso</h2>
+
         <form onSubmit={addProgress}>
           <div className="grid-2">
             <input
               type="date"
               value={progressForm.recordedAt}
-              onChange={(e) =>
+              onChange={(event) =>
                 setProgressForm({
                   ...progressForm,
-                  recordedAt: e.target.value,
+                  recordedAt: event.target.value,
                 })
               }
               required
             />
+
             <input
               type="number"
               min="20"
               max="400"
               step="0.1"
               value={progressForm.weight}
-              onChange={(e) =>
-                setProgressForm({ ...progressForm, weight: e.target.value })
+              onChange={(event) =>
+                setProgressForm({
+                  ...progressForm,
+                  weight: event.target.value,
+                })
               }
               placeholder="Peso en kg"
             />
           </div>
+
           <input
             type="number"
             min="1"
             max="80"
             step="0.1"
             value={progressForm.bodyFat}
-            onChange={(e) =>
-              setProgressForm({ ...progressForm, bodyFat: e.target.value })
+            onChange={(event) =>
+              setProgressForm({
+                ...progressForm,
+                bodyFat: event.target.value,
+              })
             }
             placeholder="Porcentaje de grasa (opcional)"
           />
+
           <textarea
             value={progressForm.notes}
-            onChange={(e) =>
-              setProgressForm({ ...progressForm, notes: e.target.value })
+            onChange={(event) =>
+              setProgressForm({
+                ...progressForm,
+                notes: event.target.value,
+              })
             }
             placeholder="Observaciones"
           />
+
           <button disabled={busyId === "progress"}>Registrar progreso</button>
         </form>
+
         <div className="item-list">
           {progress.slice(0, 5).map((entry) => (
             <div className="list-item" key={entry.id}>
@@ -289,9 +318,10 @@ const ClientDashboard = () => {
           ))}
         </div>
       </article>
-      <ClientProfile onMessage={setMessage} />
-      <FitlabAssistant />
 
+      <ClientProfile onMessage={setMessage} />
+
+      <FitlabAssistant />
     </main>
   );
 };
