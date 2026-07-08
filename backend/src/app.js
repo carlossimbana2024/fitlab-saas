@@ -11,19 +11,22 @@ const attendanceRoutes = require("./routes/attendanceRoutes");
 const invitationRoutes = require("./routes/invitationRoutes");
 const progressRoutes = require("./routes/progressRoutes");
 const membershipRoutes = require("./routes/membershipRoutes");
+
 const aiRoutes = require("./routes/aiRoutes");
+
 
 const {
   authenticate,
   loadUserContext,
 } = require("./middlewares/authMiddleware");
-
 const {
   notFound,
   errorHandler,
 } = require("./middlewares/errorMiddleware");
 
 const app = express();
+
+
 
 const allowedOrigins = (process.env.CORS_ORIGINS ||
   "http://localhost:5173,http://127.0.0.1:5173")
@@ -46,6 +49,7 @@ app.use(
     },
   })
 );
+
 
 app.use(express.json({ limit: "100kb" }));
 
@@ -72,11 +76,14 @@ app.use("/api/progress", progressRoutes);
 app.use("/api/memberships", membershipRoutes);
 app.use("/api/ai", aiRoutes);
 
+
 app.get("/", (req, res) => {
   res.json({ message: "FitLab backend funcionando" });
 });
 
 app.use(notFound);
 app.use(errorHandler);
+module.exports = app;
 
 module.exports = app;
+

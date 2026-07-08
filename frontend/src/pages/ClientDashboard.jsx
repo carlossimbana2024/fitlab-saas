@@ -14,6 +14,7 @@ import DashboardHeader from "../components/DashboardHeader";
 import StatusMessage from "../components/StatusMessage";
 import ClientProfile from "../components/ClientProfile";
 import { formatDateTime } from "../utils/date";
+
 import FitlabAssistant from "../components/FitlabAssistant";
 
 const errorText = (error) =>
@@ -290,6 +291,7 @@ const ClientDashboard = () => {
       </article>
       <ClientProfile onMessage={setMessage} />
       <FitlabAssistant />
+
     </main>
   );
 };
