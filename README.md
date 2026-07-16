@@ -5,17 +5,23 @@ Authentication y Firestore.
 
 ## Funcionalidad actual
 
-- Autenticación con correo verificado y token Firebase validado en backend.
+- Autenticacion con correo verificado y token Firebase validado en backend.
 - Roles `owner` y `client` aplicados en frontend y API.
-- Registro de clientes mediante invitación de un solo uso.
+- Registro de clientes mediante invitacion de un solo uso.
 - Aislamiento por gimnasio derivado del usuario autenticado.
-- Gestión de gimnasio, miembros, actividades y sesiones.
+- Gestion de gimnasio, miembros, actividades y sesiones.
 - Reservas con control transaccional de cupos y duplicados.
 - Asistencia solicitada por el cliente y confirmada por el administrador.
-- Historial de progreso físico.
-- Edición de perfil y contraseña.
+- Historial de progreso fisico.
+- Edicion de perfil y contrasena.
 
-## Colecciones Firestore
+## Estructura
+
+```text
+backend/    API Express, Firebase Admin, rutas, controladores y validaciones
+frontend/   Aplicacion React/Vite
+docs/       Documentacion operativa y seguridad
+```
 
 Firestore crea las colecciones al guardar el primer documento:
 
@@ -31,9 +37,9 @@ attendances
 progressEntries
 ```
 
-El esquema completo está en [docs/FIRESTORE_SCHEMA.md](docs/FIRESTORE_SCHEMA.md).
+## Configuracion local
 
-## Configuración
+Backend:
 
 ```bash
 cd backend
@@ -42,12 +48,17 @@ copy .env.example .env
 npm run dev
 ```
 
+Frontend:
+
 ```bash
 cd frontend
 npm install
 copy .env.example .env
 npm run dev
 ```
+
+No guardes claves reales en archivos `.env` versionados. Los `.env` locales
+estan ignorados por Git.
 
 ## Despliegue
 
@@ -60,7 +71,7 @@ Configura el proyecto con:
 - Build Command: `npm run build`
 - Output Directory: `dist`
 
-Variables de producción:
+Variables de produccion:
 
 ```env
 VITE_API_URL=https://TU-BACKEND.onrender.com/api
@@ -71,6 +82,9 @@ VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
+
+El frontend no tiene fallbacks hardcodeados. Si falta una variable `VITE_`, la
+app debe fallar para evitar despliegues con configuracion incompleta.
 
 ### Backend en Render
 
@@ -86,39 +100,52 @@ Variables:
 CORS_ORIGINS=https://TU-FRONTEND.vercel.app
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
-Render asigna `PORT` automáticamente. Después de obtener la URL pública del
+Render asigna `PORT` automaticamente. Despues de obtener la URL publica del
 backend, actualiza `VITE_API_URL` en Vercel y vuelve a desplegar el frontend.
 
-El backend admite credenciales Firebase mediante variables de entorno. Para
-desarrollo también conserva compatibilidad con
-`backend/firebase-service-account.json`.
+El backend solo admite credenciales Firebase mediante variables de entorno. No
+uses `backend/firebase-service-account.json`.
+
+## Seguridad
+
+- La API nunca acepta un UID o `gymId` operativo como fuente de autorizacion.
+- El UID se obtiene del ID token Firebase.
+- El gimnasio se obtiene de `users/{uid}.gym_id`.
+- Las operaciones de dueno verifican rol y pertenencia.
+- Las membresias inactivas bloquean operaciones del cliente.
+- CORS, rate limiting, validacion Zod y manejador central de errores estan
+  habilitados.
+- Firestore esta cerrado al acceso directo desde navegadores en
+  `firestore.rules`.
+- Hay una configuracion base de `pre-commit` con `detect-secrets`.
+
+Consulta [docs/SECURITY.md](docs/SECURITY.md) para rotacion de service accounts,
+formato de secretos, restricciones de Firebase y deteccion automatica de
+secretos.
 
 ## Reglas Firestore
 
-La aplicación accede a Firestore mediante Firebase Admin en el backend. Las
+La aplicacion accede a Firestore mediante Firebase Admin en el backend. Las
 reglas incluidas bloquean el acceso directo desde navegadores:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-Debes asociar `firestore.rules` al proyecto en `firebase.json` si todavía no
-utilizas Firebase CLI.
-
 ## Flujo de usuarios
 
-1. Un dueño existente inicia sesión.
-2. Genera una invitación desde su dashboard.
-3. Comparte el código con el cliente.
+1. Un dueno existente inicia sesion.
+2. Genera una invitacion desde su dashboard.
+3. Comparte el codigo con el cliente.
 4. El cliente se registra y recibe rol `client`.
-5. El sistema crea su perfil y membresía activa.
+5. El sistema crea su perfil y membresia activa.
 
-El onboarding para crear gimnasios y sus primeros dueños se mantiene separado
-del registro público. Hasta implementar facturación y verificación comercial,
-los primeros dueños deben provisionarse de forma administrativa.
+El onboarding para crear gimnasios y sus primeros duenos se mantiene separado
+del registro publico. Hasta implementar facturacion y verificacion comercial,
+los primeros duenos deben provisionarse de forma administrativa.
 
 ## Scripts
 
@@ -138,21 +165,11 @@ npm run lint
 npm run build
 ```
 
-## Seguridad
+## Proximas etapas
 
-- La API nunca acepta un UID o `gymId` operativo como fuente de autorización.
-- El UID se obtiene del ID token Firebase.
-- El gimnasio se obtiene de `users/{uid}.gym_id`.
-- Las operaciones de dueño verifican rol y pertenencia.
-- Las membresías inactivas bloquean operaciones del cliente.
-- CORS, rate limiting, validación Zod y manejador central de errores están
-  habilitados.
-
-## Próximas etapas
-
-- Onboarding de propietarios y creación de organizaciones.
+- Onboarding de propietarios y creacion de organizaciones.
 - Fotos de progreso mediante Firebase Storage.
 - QR firmado para asistencia.
-- Pagos y renovación automática de membresías.
-- Paginación con cursores para gimnasios con grandes volúmenes.
-- Pruebas de integración con Firebase Emulator Suite.
+- Pagos y renovacion automatica de membresias.
+- Paginacion con cursores para gimnasios con grandes volumenes.
+- Pruebas de integracion con Firebase Emulator Suite.
